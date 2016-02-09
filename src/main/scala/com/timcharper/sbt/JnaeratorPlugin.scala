@@ -63,7 +63,7 @@ object JnaeratorPlugin extends AutoPlugin {
 
         jnaeratorTargets.flatMap { target =>
           val targetId = s"${target.headerFile.getName}-${(target, jnaeratorRuntime, sourceManaged).hashCode}"
-          val cachedCompile = FileFunction.cached(streams.cacheDirectory / "jnaerator", inStyle = FilesInfo.lastModified, outStyle = FilesInfo.exists) { (_: Set[File]) =>
+          val cachedCompile = FileFunction.cached(streams.cacheDirectory / "jnaerator" / targetId, inStyle = FilesInfo.lastModified, outStyle = FilesInfo.exists) { (_: Set[File]) =>
             IO.delete(sourceManaged)
             sourceManaged.mkdirs()
 
