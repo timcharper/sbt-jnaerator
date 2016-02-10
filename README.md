@@ -6,7 +6,7 @@ Downloads JNAerator from Maven and generates interfaces as part of compilation.
 
 Add to `project/plugins.sbt`:
 
-    addSbtPlugin("com.timcharper" % "sbt-jnaerator" % "0.2.1")
+    addSbtPlugin("com.timcharper" % "sbt-jnaerator" % "0.3.1")
 
 Configure:
 
