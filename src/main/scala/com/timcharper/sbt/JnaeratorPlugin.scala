@@ -11,7 +11,7 @@ object JnaeratorPlugin extends AutoPlugin {
 
     val jnaerator = sbtConfig("jnaerator")
 
-    val jnaeratorTargets = SettingKey[Seq[Jnaerator.Target]]("jnaerator-targets",
+    val jnaeratorTargets = TaskKey[Seq[Jnaerator.Target]]("jnaerator-targets",
       "List of header-files and corresponding configuration for java interface generation")
     val jnaeratorGenerate = TaskKey[Seq[File]]("jnaerator-generate",
       "Run jnaerate and generate interfaces")
@@ -44,7 +44,11 @@ object JnaeratorPlugin extends AutoPlugin {
           case Runtime.BridJ => "0.7.0"
         }).value,
         cleanFiles += (sourceManaged in jnaerator).value,
-        watchSources ++= ((jnaeratorTargets in jnaerator) { _.map(_.headerFile) }).value,
+
+        // watchSources ++= (jnaeratorTargets in jnaerator).flatMap(_.join).map { _.map(_.headerFile) }.value,
+        watchSources ++= (jnaeratorTargets in jnaerator).map { _.map(_.headerFile) }.value,
+        watchSources += file("."),
+
         sourceGenerators in Compile += (jnaeratorGenerate in jnaerator).taskValue,
         managedSourceDirectories in Compile += (sourceManaged in jnaerator).value,
         libraryDependencies += (jnaeratorRuntime in jnaerator, version in jnaerator).apply {
@@ -54,39 +58,43 @@ object JnaeratorPlugin extends AutoPlugin {
             "com.nativelibs4java" % "bridj" % v
         }.value
       )
-
     }
 
-    private def runJnaerator: Def.Initialize[Task[Seq[File]]] =
-      (streams, jnaeratorTargets in jnaerator, jnaeratorRuntime in jnaerator, sourceManaged in jnaerator) map {
-        (streams, jnaeratorTargets, runtime, sourceManaged) =>
+    private def runJnaerator: Def.Initialize[Task[Seq[File]]] = Def.task {
 
-        jnaeratorTargets.flatMap { target =>
-          val targetId = s"${target.headerFile.getName}-${(target, jnaeratorRuntime, sourceManaged).hashCode}"
-          val cachedCompile = FileFunction.cached(streams.cacheDirectory / "jnaerator" / targetId, inStyle = FilesInfo.lastModified, outStyle = FilesInfo.exists) { (_: Set[File]) =>
-            IO.delete(sourceManaged)
-            sourceManaged.mkdirs()
+      val targets = (jnaeratorTargets in jnaerator).value
+      val s = (streams.value)
+      val runtime = (jnaeratorRuntime in jnaerator).value
+      val outputPath = (sourceManaged in jnaerator).value
 
-	          // java -jar bin/jnaerator.jar -package com.spacemonkey.doubler -library doubler lib/libdoubler.h -o src/main/java -mode Directory -f -scalaStructSetters
-            val args = List(
-              "-package", target.packageName,
-              "-library", target.libraryName,
-              target.headerFile.getCanonicalPath,
-              "-o", sourceManaged.getCanonicalPath,
-              "-mode", "Directory",
-              "-f", "-scalaStructSetters") ++ target.extraArgs
+      targets.flatMap { target =>
+        val targetId = s"${target.headerFile.getName}-${(target, jnaeratorRuntime, outputPath).hashCode}"
+        val cachedCompile = FileFunction.cached(s.cacheDirectory / "jnaerator" / targetId, inStyle = FilesInfo.lastModified, outStyle = FilesInfo.exists) { (_: Set[File]) =>
+          IO.delete(outputPath)
+          outputPath.mkdirs()
 
-            streams.log.info(s"(${target.headerFile.getName}) Running JNAerator with args ${args.mkString(" ")}")
-            try {
-              com.ochafik.lang.jnaerator.JNAerator.main(args.toArray)
-            } catch { case e: Exception =>
-                throw new RuntimeException(s"error occured while running jnaerator: ${e.getMessage}", e)
-            }
+	        // java -jar bin/jnaerator.jar -package com.package.name -library libName lib/libName.h -o src/main/java -mode Directory -f -scalaStructSetters
+          val args = List(
+            "-package", target.packageName,
+            "-library", target.libraryName,
+            target.headerFile.getCanonicalPath,
+            "-o", outputPath.getCanonicalPath,
+            "-mode", "Directory",
+            "-f", "-scalaStructSetters") ++ target.extraArgs
 
-            (sourceManaged ** "*.java").get.toSet
+          s.log.info(s"(${target.headerFile.getName}) Running JNAerator with args ${args.mkString(" ")}")
+          try {
+            com.ochafik.lang.jnaerator.JNAerator.main(args.toArray)
+          } catch { case e: Exception =>
+              throw new RuntimeException(s"error occured while running jnaerator: ${e.getMessage}", e)
           }
-          cachedCompile(Set(target.headerFile)).toSeq
+
+          (outputPath ** "*.java").get.toSet
         }
+        cachedCompile(Set(target.headerFile)).toSeq
       }
+    }
   }
+
+
 }
