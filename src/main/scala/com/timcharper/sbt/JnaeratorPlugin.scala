@@ -67,12 +67,14 @@ object JnaeratorPlugin extends AutoPlugin {
       val runtime = (jnaeratorRuntime in jnaerator).value
       val outputPath = (sourceManaged in jnaerator).value
 
-      targets.flatMap { target =>
-        val targetId = s"${target.headerFile.getName}-${(target, runtime, outputPath).hashCode}"
-        val cachedCompile = FileFunction.cached(s.cacheDirectory / "jnaerator" / targetId, inStyle = FilesInfo.lastModified, outStyle = FilesInfo.exists) { (_: Set[File]) =>
-          IO.delete(outputPath)
-          outputPath.mkdirs()
+      val targetId = "c" + (targets.toList.map { target =>
+        (target, runtime, outputPath)
+      }).hashCode
+      val cachedCompile = FileFunction.cached(s.cacheDirectory / "jnaerator" / targetId, inStyle = FilesInfo.lastModified, outStyle = FilesInfo.exists) { (_: Set[File]) =>
+        IO.delete(outputPath)
+        outputPath.mkdirs()
 
+        targets.flatMap { target =>
 	        // java -jar bin/jnaerator.jar -package com.package.name -library libName lib/libName.h -o src/main/java -mode Directory -f -scalaStructSetters
           val args = List(
             "-package", target.packageName,
@@ -89,10 +91,10 @@ object JnaeratorPlugin extends AutoPlugin {
               throw new RuntimeException(s"error occured while running jnaerator: ${e.getMessage}", e)
           }
 
-          (outputPath ** "*.java").get.toSet
-        }
-        cachedCompile(Set(target.headerFile)).toSeq
+          (outputPath ** "*.java").get
+        }.toSet
       }
+      cachedCompile(targets.map(_.headerFile).toSet).toSeq
     }
   }
 
