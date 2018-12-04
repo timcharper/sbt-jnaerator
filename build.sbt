@@ -2,11 +2,11 @@ name := "sbt-jnaerator"
 
 sbtPlugin := true
 
-version := "0.3.1"
+version := "0.4"
 
 organization := "com.timcharper"
 
-scalaVersion in Global := "2.10.5"
+scalaVersion in Global := "2.12.7"
 
 scalacOptions in Compile ++= Seq("-deprecation", "-target:jvm-1.7")
 
